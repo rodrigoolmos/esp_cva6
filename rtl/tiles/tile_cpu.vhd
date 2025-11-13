@@ -17,6 +17,7 @@ use work.devices.all;
 use work.gencomp.all;
 use work.leon3.all;
 use work.ariane_esp_pkg.all;
+use work.cva6_esp_pkg.all;
 use work.ibex_esp_pkg.all;
 use work.misc.all;
 -- pragma translate_off
@@ -459,7 +460,7 @@ begin
   process(tile_clk, rst)
   begin  -- process
     if rst = '1' then
-      assert (GLOB_CPU_ARCH = leon3 or GLOB_CPU_ARCH = ariane or GLOB_CPU_ARCH = ibex) report "Processor core architecture not supported!" severity failure;
+      assert (GLOB_CPU_ARCH = leon3 or GLOB_CPU_ARCH = ariane or GLOB_CPU_ARCH = cva6 or GLOB_CPU_ARCH = ibex) report "Processor core architecture not supported!" severity failure;
     end if;
   end process;
   --pragma translate_on
@@ -707,6 +708,68 @@ begin
 
   end generate ariane_cpu_gen;
 
+  -- CVA6
+  cva6_cpu_gen: if GLOB_CPU_ARCH = cva6 generate
+
+    cva6_axi_wrap_1: cva6_axi_wrap
+      generic map (
+        NMST             => 2,
+        NSLV             => 6,
+        ROMBase          => X"0000_0000_0001_0000",
+        ROMLength        => X"0000_0000_0001_0000",
+        APBBase          => X"0000_0000" & conv_std_logic_vector(CFG_APBADDR, 12) & X"0_0000",
+        APBLength        => X"0000_0000_1000_0000",
+        CLINTBase        => X"0000_0000_0200_0000",
+        CLINTLength      => X"0000_0000_000C_0000",
+        SLMBase          => X"0000_0000_0400_0000",
+        SLMLength        => X"0000_0000_0400_0000",
+        SLMDDRBase       => X"0000_0000_C000_0000",
+        SLMDDRLength     => X"0000_0000_4000_0000",
+        DRAMBase         => X"0000_0000" & conv_std_logic_vector(ddr_haddr(0), 12) & X"0_0000",
+        DRAMLength       => X"0000_0000_4000_0000",
+        DRAMCachedLength => conv_std_logic_vector(ariane_cacheable_len, 64))
+      port map (
+        clk         => tile_clk,
+        rstn        => cpurstn,
+        HART_ID     => this_cpu_id_lv,
+        irq         => irq,
+        timer_irq   => timer_irq,
+        ipi         => ipi,
+        romi        => mosi(0),
+        romo        => somi(0),
+        drami       => ariane_drami,
+        dramo       => ariane_dramo,
+        clinti      => mosi(2),
+        clinto      => somi(2),
+        slmi        => mosi(3),
+        slmo        => somi(3),
+        slmddri     => mosi(4),
+        slmddro     => somi(4),
+        ace_req     => ace_req,
+        ace_resp    => ace_resp,
+        apbi        => apbi,
+        apbo        => apbo,
+        apb_req     => apb_req,
+        apb_ack     => apb_ack,
+        fence_l2    => fence_l2,
+        flush_l1    => flush_l1,
+        flush_done  => dflush
+      );
+
+    cpuerr <= '1' when ariane_drami.aw.addr = X"80001000" and ariane_drami.aw.valid = '1' else '0';
+
+    irq       <= irqi.irl(1 downto 0);
+    timer_irq <= irqi.irl(2);
+    ipi       <= irqi.irl(3);
+
+    irqo <= irq_out_none;
+
+    assert (CFG_L2_ENABLE = 0)
+      report "CVA6 currently supports only non-coherent (L2 disabled) configurations"
+      severity failure;
+
+  end generate cva6_cpu_gen;
+
   -----------------------------------------------------------------------------
   -- Services
   -----------------------------------------------------------------------------
@@ -901,7 +964,7 @@ begin
   end generate leon3_cpu_tile_services_gen;
 
 
-  ariane_cpu_tile_services_gen: if GLOB_CPU_ARCH = ariane generate
+  ariane_cpu_tile_services_gen: if GLOB_CPU_ARCH = ariane or GLOB_CPU_ARCH = cva6 generate
 
     ariane_with_cache_coherence: if CFG_L2_ENABLE /= 0 generate
       cache_drami <= ariane_drami;

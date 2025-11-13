@@ -5,6 +5,9 @@ INCDIR = -I../include -I../../common/include -I$(DESIGN_PATH)/socgen/esp
 ifeq ("$(CPU_ARCH)", "ariane")
 CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
 ARCH ?= riscv
+else ifeq ("$(CPU_ARCH)", "cva6")
+CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
+ARCH ?= riscv
 else # ("$(CPU_ARCH)", "leon3")
 CROSS_COMPILE ?= sparc-linux-
 ARCH ?= sparc

@@ -1,11 +1,14 @@
 // Copyright (c) 2011-2025 Columbia University, System Level Design Group
 // SPDX-License-Identifier: Apache-2.0
 
-module ariane_wrap #(
+`include "axi/typedef.svh"
+`include "axi/assign.svh"
+
+module cva6_wrap #(
     parameter              NMST             = 2,
     parameter              NSLV             = 6,
-    parameter              AXI_ID_WIDTH     = ariane_soc::IdWidth,
-    parameter              AXI_ID_WIDTH_SLV = ariane_soc::IdWidthSlave + $clog2(NMST),
+    parameter              AXI_ID_WIDTH     = cva6_soc::IdWidth,
+    parameter              AXI_ID_WIDTH_SLV = cva6_soc::IdWidthSlave + $clog2(NMST),
     parameter              AXI_ADDR_WIDTH   = 64,
     parameter              AXI_DATA_WIDTH   = 64,
     parameter              AXI_USER_WIDTH   = 1,
@@ -313,32 +316,34 @@ module ariane_wrap #(
     output logic                flush_done
 );
 
-    // Base addresses for Ariane
-    localparam ariane_pkg::ariane_cfg_t ArianeSocCfg = '{
-        RASDepth: 2,
-        BTBEntries: 32,
-        BHTEntries: 128,
-        // idempotent region
-        NrNonIdempotentRules:
-        1,
-        NonIdempotentAddrBase: {64'b0},
-        NonIdempotentLength: {DRAMBase},
-        NrExecuteRegionRules: 2,
-        ExecuteRegionAddrBase: {DRAMBase, ROMBase},
-        ExecuteRegionLength: {DRAMCachedLength, ROMLength},
-        // cached region
-        NrCachedRegionRules:
-        1,
-        CachedRegionAddrBase: {DRAMBase},
-        CachedRegionLength: {DRAMCachedLength},
-        //  cache config
-        Axi64BitCompliant:
-        1'b1,
-        SwapEndianess: 1'b0,
-        // debug
-        DmBaseAddress:
-        64'd0
-    };
+    function automatic config_pkg::cva6_cfg_t build_esp_config();
+        config_pkg::cva6_user_cfg_t cfg = cva6_config_pkg::cva6_cfg;
+        cfg.CvxifEn                 = bit'(0);
+        cfg.CoproType               = config_pkg::COPRO_NONE;
+        cfg.DCacheType              = config_pkg::WT;
+        cfg.NrNonIdempotentRules    = unsigned'(1);
+        cfg.NonIdempotentAddrBase   = '0;
+        cfg.NonIdempotentAddrBase[0]= 64'b0;
+        cfg.NonIdempotentLength     = '0;
+        cfg.NonIdempotentLength[0]  = DRAMBase;
+        cfg.NrExecuteRegionRules    = unsigned'(2);
+        cfg.ExecuteRegionAddrBase   = '0;
+        cfg.ExecuteRegionAddrBase[0]= DRAMBase;
+        cfg.ExecuteRegionAddrBase[1]= ROMBase;
+        cfg.ExecuteRegionLength     = '0;
+        cfg.ExecuteRegionLength[0]  = DRAMCachedLength;
+        cfg.ExecuteRegionLength[1]  = ROMLength;
+        cfg.NrCachedRegionRules     = unsigned'(1);
+        cfg.CachedRegionAddrBase    = '0;
+        cfg.CachedRegionAddrBase[0] = DRAMBase;
+        cfg.CachedRegionLength      = '0;
+        cfg.CachedRegionLength[0]   = DRAMCachedLength;
+        cfg.DmBaseAddress           = 64'd0;
+        cfg.TechnoCut               = bit'(1);
+        return build_config_pkg::build_config(cfg);
+    endfunction
+
+    localparam config_pkg::cva6_cfg_t Cva6SocCfg = build_esp_config();
 
     // TODO: move this to I/O tile and socmap CFG_NCPUTILE
     localparam NHARTS = 1;
@@ -366,6 +371,20 @@ module ariane_wrap #(
         .AXI_USER_WIDTH(AXI_USER_WIDTH)
     ) master[NSLV-1:0] ();
 
+    typedef logic [AXI_ADDR_WIDTH-1:0] cva6_axi_addr_t;
+    typedef logic [AXI_DATA_WIDTH-1:0] cva6_axi_data_t;
+    typedef logic [AXI_ID_WIDTH-1:0]   cva6_axi_id_t;
+    typedef logic [AXI_STRB_WIDTH-1:0] cva6_axi_strb_t;
+    typedef logic [AXI_USER_WIDTH-1:0] cva6_axi_user_t;
+
+    `AXI_TYPEDEF_AW_CHAN_T(cva6_axi_aw_chan_t, cva6_axi_addr_t, cva6_axi_id_t, cva6_axi_user_t)
+    `AXI_TYPEDEF_W_CHAN_T (cva6_axi_w_chan_t,  cva6_axi_data_t, cva6_axi_strb_t, cva6_axi_user_t)
+    `AXI_TYPEDEF_B_CHAN_T (cva6_axi_b_chan_t,  cva6_axi_id_t,   cva6_axi_user_t)
+    `AXI_TYPEDEF_AR_CHAN_T(cva6_axi_ar_chan_t, cva6_axi_addr_t, cva6_axi_id_t, cva6_axi_user_t)
+    `AXI_TYPEDEF_R_CHAN_T (cva6_axi_r_chan_t,  cva6_axi_data_t, cva6_axi_id_t, cva6_axi_user_t)
+    `AXI_TYPEDEF_REQ_T    (cva6_axi_req_t,     cva6_axi_aw_chan_t, cva6_axi_w_chan_t, cva6_axi_ar_chan_t)
+    `AXI_TYPEDEF_RESP_T   (cva6_axi_resp_t,    cva6_axi_b_chan_t, cva6_axi_r_chan_t)
+
     assign slave[1].aw_valid = 1'b0;
     assign slave[1].w_valid  = 1'b0;
     assign slave[1].ar_valid = 1'b0;
@@ -375,75 +394,120 @@ module ariane_wrap #(
     // ---------------
     // AXI Xbar
     // ---------------
-    axi_node_wrap_with_slices #(
-        .NB_SLAVE          (NMST),
-        .NB_MASTER         (NSLV),
-        .NB_REGION         (1),
-        .AXI_ADDR_WIDTH    (AXI_ADDR_WIDTH),
-        .AXI_DATA_WIDTH    (AXI_DATA_WIDTH),
-        .AXI_USER_WIDTH    (AXI_USER_WIDTH),
-        .AXI_ID_WIDTH      (AXI_ID_WIDTH),
-        .MASTER_SLICE_DEPTH(2),
-        .SLAVE_SLICE_DEPTH (2)
-    ) i_axi_xbar (
-        .clk(clk),
-        .rst_n(rstn),
-        .test_en_i(1'b0),
-        .slave(slave),
-        .master(master),
-        .start_addr_i({
-            DRAMBase[AXI_ADDR_WIDTH-1:0],
-            SLMDDRBase[AXI_ADDR_WIDTH-1:0],
-            SLMBase[AXI_ADDR_WIDTH-1:0],
-            CLINTBase[AXI_ADDR_WIDTH-1:0],
-            APBBase[AXI_ADDR_WIDTH-1:0],
-            ROMBase[AXI_ADDR_WIDTH-1:0]
-        }),
-        .end_addr_i({
-            DRAMBase[AXI_ADDR_WIDTH-1:0] + DRAMLength[AXI_ADDR_WIDTH-1:0] - 1,
-            SLMDDRBase[AXI_ADDR_WIDTH-1:0] + SLMDDRLength[AXI_ADDR_WIDTH-1:0] - 1,
-            SLMBase[AXI_ADDR_WIDTH-1:0] + SLMLength[AXI_ADDR_WIDTH-1:0] - 1,
-            CLINTBase[AXI_ADDR_WIDTH-1:0] + CLINTLength[AXI_ADDR_WIDTH-1:0] - 1,
-            APBBase[AXI_ADDR_WIDTH-1:0] + APBLength[AXI_ADDR_WIDTH-1:0] - 1,
-            ROMBase[AXI_ADDR_WIDTH-1:0] + ROMLength[AXI_ADDR_WIDTH-1:0] - 1
-        }),
-        .valid_rule_i({{NSLV} {1'b1}})
-    );
+    localparam axi_pkg::xbar_cfg_t AXI_XBAR_CFG = '{
+        NoSlvPorts:        unsigned'(NMST),
+        NoMstPorts:        unsigned'(NSLV),
+        MaxMstTrans:       unsigned'(1),
+        MaxSlvTrans:       unsigned'(1),
+        FallThrough:       1'b0,
+        LatencyMode:       axi_pkg::NO_LATENCY,
+        AxiIdWidthSlvPorts: unsigned'(AXI_ID_WIDTH),
+        AxiIdUsedSlvPorts:  unsigned'(AXI_ID_WIDTH),
+        UniqueIds:         1'b0,
+        AxiAddrWidth:      unsigned'(AXI_ADDR_WIDTH),
+        AxiDataWidth:      unsigned'(AXI_DATA_WIDTH),
+        NoAddrRules:       unsigned'(NSLV)
+    };
+
+    generate
+        if (AXI_ADDR_WIDTH == 64) begin : gen_xbar_64
+            axi_pkg::xbar_rule_64_t [NSLV-1:0] addr_map;
+            assign addr_map = '{
+                '{ idx: DRAM,     start_addr: DRAMBase,     end_addr: DRAMBase + DRAMLength      },
+                '{ idx: SLMDDR,   start_addr: SLMDDRBase,   end_addr: SLMDDRBase + SLMDDRLength  },
+                '{ idx: SLM,      start_addr: SLMBase,      end_addr: SLMBase + SLMLength        },
+                '{ idx: CLINT,    start_addr: CLINTBase,    end_addr: CLINTBase + CLINTLength    },
+                '{ idx: APB,      start_addr: APBBase,      end_addr: APBBase + APBLength        },
+                '{ idx: ROM,      start_addr: ROMBase,      end_addr: ROMBase + ROMLength        }
+            };
+            axi_xbar_intf #(
+                .AXI_USER_WIDTH ( AXI_USER_WIDTH          ),
+                .Cfg            ( AXI_XBAR_CFG            ),
+                .rule_t         ( axi_pkg::xbar_rule_64_t )
+            ) i_axi_xbar (
+                .clk_i                 ( clk        ),
+                .rst_ni                ( rstn       ),
+                .test_i                ( 1'b0       ),
+                .slv_ports             ( slave      ),
+                .mst_ports             ( master     ),
+                .addr_map_i            ( addr_map   ),
+                .en_default_mst_port_i ( '0         ),
+                .default_mst_port_i    ( '0         )
+            );
+        end else begin : gen_xbar_32
+            axi_pkg::xbar_rule_32_t [NSLV-1:0] addr_map;
+            assign addr_map = '{
+                '{ idx: DRAM,     start_addr: DRAMBase[AXI_ADDR_WIDTH-1:0],     end_addr: (DRAMBase[AXI_ADDR_WIDTH-1:0] + DRAMLength[AXI_ADDR_WIDTH-1:0] - 1)     },
+                '{ idx: SLMDDR,   start_addr: SLMDDRBase[AXI_ADDR_WIDTH-1:0],   end_addr: (SLMDDRBase[AXI_ADDR_WIDTH-1:0] + SLMDDRLength[AXI_ADDR_WIDTH-1:0] - 1) },
+                '{ idx: SLM,      start_addr: SLMBase[AXI_ADDR_WIDTH-1:0],      end_addr: (SLMBase[AXI_ADDR_WIDTH-1:0] + SLMLength[AXI_ADDR_WIDTH-1:0] - 1)       },
+                '{ idx: CLINT,    start_addr: CLINTBase[AXI_ADDR_WIDTH-1:0],    end_addr: (CLINTBase[AXI_ADDR_WIDTH-1:0] + CLINTLength[AXI_ADDR_WIDTH-1:0] - 1)   },
+                '{ idx: APB,      start_addr: APBBase[AXI_ADDR_WIDTH-1:0],      end_addr: (APBBase[AXI_ADDR_WIDTH-1:0] + APBLength[AXI_ADDR_WIDTH-1:0] - 1)       },
+                '{ idx: ROM,      start_addr: ROMBase[AXI_ADDR_WIDTH-1:0],      end_addr: (ROMBase[AXI_ADDR_WIDTH-1:0] + ROMLength[AXI_ADDR_WIDTH-1:0] - 1)       }
+            };
+            axi_xbar_intf #(
+                .AXI_USER_WIDTH ( AXI_USER_WIDTH          ),
+                .Cfg            ( AXI_XBAR_CFG            ),
+                .rule_t         ( axi_pkg::xbar_rule_32_t )
+            ) i_axi_xbar (
+                .clk_i                 ( clk        ),
+                .rst_ni                ( rstn       ),
+                .test_i                ( 1'b0       ),
+                .slv_ports             ( slave      ),
+                .mst_ports             ( master     ),
+                .addr_map_i            ( addr_map   ),
+                .en_default_mst_port_i ( '0         ),
+                .default_mst_port_i    ( '0         )
+            );
+        end
+    endgenerate
 
     // ---------------
     // Core
     // ---------------
 
-    ariane_axi::req_t        axi_ariane_req;
-    ariane_axi::resp_t       axi_ariane_resp;
-    ariane_axi::snoop_req_t  ace_req;
-    ariane_axi::snoop_resp_t ace_resp;
+    cva6_axi_req_t           axi_cva6_req;
+    cva6_axi_resp_t          axi_cva6_resp;
+    logic                    flush_ack;
 
     ariane #(
-        .ArianeCfg(ArianeSocCfg)
-    ) i_ariane (
-        .clk_i       (clk),
-        .rst_ni      (rstn),
-        .boot_addr_i (ROMBase),
-        .hart_id_i   (HART_ID),
-        .irq_i       (irq),
-        .ipi_i       (ipi),
-        .time_irq_i  (timer_irq),
-        .debug_req_i (1'b0),
-        .axi_req_o   (axi_ariane_req),
-        .axi_resp_i  (axi_ariane_resp),
-        .ace_req_i   (ace_req),// ESP
-        .ace_resp_o  (ace_resp),// ESP
-        .fence_l2_o  (fence_l2),// ESP
-        .flush_l1_i  (flush_l1),// ESP
-        .flush_done_o(flush_done)// ESP
+        .CVA6Cfg       (Cva6SocCfg),
+        .AxiAddrWidth  (AXI_ADDR_WIDTH),
+        .AxiDataWidth  (AXI_DATA_WIDTH),
+        .AxiIdWidth    (AXI_ID_WIDTH),
+        .axi_aw_chan_t (cva6_axi_aw_chan_t),
+        .axi_w_chan_t  (cva6_axi_w_chan_t),
+        .axi_ar_chan_t (cva6_axi_ar_chan_t),
+        .noc_req_t     (cva6_axi_req_t),
+        .noc_resp_t    (cva6_axi_resp_t)
+    ) i_cva6 (
+        .clk_i        (clk),
+        .rst_ni       (rstn),
+        .boot_addr_i  (ROMBase),
+        .hart_id_i    (HART_ID),
+        .irq_i        (irq),
+        .ipi_i        (ipi),
+        .time_irq_i   (timer_irq),
+        .debug_req_i  (1'b0),
+        .rvfi_probes_o(),
+        .noc_req_o    (axi_cva6_req),
+        .noc_resp_i   (axi_cva6_resp)
     );
 
-    axi_master_connect i_axi_master_connect_ariane (
-        .axi_req_i(axi_ariane_req),
-        .axi_resp_o(axi_ariane_resp),
-        .master(slave[0])
-    );
+    `AXI_ASSIGN_FROM_REQ(slave[0], axi_cva6_req)
+    `AXI_ASSIGN_TO_RESP(axi_cva6_resp, slave[0])
+
+    always_ff @(posedge clk or negedge rstn) begin
+        if (!rstn) begin
+            flush_ack <= 1'b0;
+        end else if (!flush_ack && flush_l1) begin
+            flush_ack <= 1'b1;
+        end else if (!flush_l1) begin
+            flush_ack <= 1'b0;
+        end
+    end
+
+    assign fence_l2  = 2'b00;
+    assign flush_done = (~flush_l1) | flush_ack;
 
 
     // ---------------
@@ -849,9 +913,5 @@ module ariane_wrap #(
     assign dram.r_valid     = dram_r_valid;
     assign dram_r_ready     = dram.r_ready;
     //    AC (TODO: connect through the AXI crossbar!)
-    assign ace_req.ac_valid = dram_ac_valid;
-    assign ace_req.ac.addr  = dram_ac_addr;
-    assign ace_req.ac.prot  = dram_ac_prot;
-    assign ace_req.ac.snoop = dram_ac_snoop;
-    assign dram_ac_ready    = ace_resp.ac_ready;
+    assign dram_ac_ready    = 1'b1;
 endmodule

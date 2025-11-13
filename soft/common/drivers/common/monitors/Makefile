@@ -10,6 +10,8 @@ ifeq ("$(MODE)", "LINUX")
 INCDIR += -I$(DESIGN_PATH)/socgen/esp
 ifeq ("$(CPU_ARCH)", "ariane")
 CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
+else ifeq ("$(CPU_ARCH)", "cva6")
+CROSS_COMPILE ?= riscv64-unknown-linux-gnu-
 else # ("$(CPU_ARCH)", "leon3")
 CROSS_COMPILE ?= sparc-linux-
 endif
@@ -17,6 +19,9 @@ endif
 CFLAGS += -O3
 else # ("$(MODE)", "BAREC")
 CPU_SOFT_PATH := ../../../../$(CPU_ARCH)
+ifeq ("$(CPU_ARCH)", "cva6")
+CPU_SOFT_PATH := ../../../../ariane
+endif
 INCDIR += -I$(DESIGN_PATH)
 
 ifeq ("$(CPU_ARCH)", "leon3")
@@ -40,6 +45,8 @@ CFLAGS += -nostdlib
 CFLAGS += -nostartfiles
 
 ifeq ("$(CPU_ARCH)", "ariane")
+CROSS_COMPILE ?= riscv64-unknown-elf-
+else ifeq ("$(CPU_ARCH)", "cva6")
 CROSS_COMPILE ?= riscv64-unknown-elf-
 else # ("$(CPU_ARCH)", "ibex")
 CROSS_COMPILE ?= riscv32-unknown-elf-

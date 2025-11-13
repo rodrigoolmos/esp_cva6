@@ -153,7 +153,7 @@ class StyledComponents:
 
 class SocConfigFrame:
     def set_cpu_specific_labels(self, soc):
-        if soc.CPU_ARCH.get() == "ariane":
+        if soc.CPU_ARCH.get() in ("ariane", "cva6"):
             self.fpu_value.configure(text="ETH FPnew")
         elif soc.CPU_ARCH.get() == "leon3" and soc.LEON3_HAS_FPU == "7":
             self.fpu_value.configure(text="SLD FPU")
@@ -191,7 +191,7 @@ class SocConfigFrame:
             self.fpga_value_frame, self.fpga_board_text)
 
         # CPU Architecture
-        self.cpu_choices = ["leon3", "ariane", "ibex"]
+        self.cpu_choices = ["leon3", "ariane", "cva6", "ibex"]
         self.cpu_label = StyledComponents.KeyLabel(
             self.soc_config_frame, "CPU Architecture", 3, 0)
         self.cpu_value_frame = ctk.CTkFrame(self.soc_config_frame)
@@ -699,7 +699,7 @@ class EspCreator:
         self.noc_config_frame.create_noc()
 
     def update_noc_config(self, *args):
-        if soc.CPU_ARCH.get() == "ariane":
+        if soc.CPU_ARCH.get() in ("ariane", "cva6"):
             self.soc.ARCH_BITS = 64
         else:
             self.soc.ARCH_BITS = 32

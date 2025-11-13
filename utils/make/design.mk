@@ -65,7 +65,7 @@ else
 LINUX_CONFIG = $(CPU_ARCH)_defconfig
 endif
 
-ifeq ("$(CPU_ARCH)", "ariane")
+ifneq ($(filter $(CPU_ARCH),ariane cva6),)
 ARCH=riscv
 CROSS_COMPILE_ELF = riscv64-unknown-elf-
 CROSS_COMPILE_LINUX = riscv64-unknown-linux-gnu-

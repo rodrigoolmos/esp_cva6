@@ -1,6 +1,9 @@
 # Copyright (c) 2011-2025 Columbia University, System Level Design Group
 # SPDX-License-Identifier: Apache-2.0
 CPU_SOFT_PATH := ../../../../$(CPU_ARCH)
+ifeq ("$(CPU_ARCH)", "cva6")
+CPU_SOFT_PATH := ../../../../ariane
+endif
 
 ifeq ("$(CPU_ARCH)", "leon3")
 CFLAGS := -O3
@@ -27,6 +30,8 @@ LDFLAGS += -lgcc
 OBJS_DEP := syscalls.o uart.o fdt.o
 OBJS_DEP := $(addprefix  $(BUILD_PATH)/, $(OBJS_DEP))
 ifeq ("$(CPU_ARCH)", "ariane")
+CROSS_COMPILE ?= riscv64-unknown-elf-
+else ifeq ("$(CPU_ARCH)", "cva6")
 CROSS_COMPILE ?= riscv64-unknown-elf-
 else # ("$(CPU_ARCH)", "ibex")
 CROSS_COMPILE ?= riscv32-unknown-elf-

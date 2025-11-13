@@ -9,6 +9,9 @@ INCDIR += $(DESIGN_PATH)/$(ESP_CFG_BUILD)
 INCDIR += $(THIRDPARTY_INCDIR)
 INCDIR += $(ESP_ROOT)/rtl/caches/esp-caches/common/defs
 
+# Track all file lists so RTL source database rebuilds whenever they change
+FLIST_SRCS := $(wildcard $(FLISTS)/*.flist)
+
 ## VHDL Packages
 SIM_VHDL_PKGS += $(SOCKETGEN_VHDL_RTL_PKGS)
 SIM_VHDL_PKGS += $(foreach f, $(shell strings $(FLISTS)/vhdl_pkgs.flist), $(ESP_ROOT)/rtl/$(f))
@@ -21,8 +24,9 @@ VHDL_PKGS += $(THIRDPARTY_VHDL_PKGS)
 VHDL_PKGS += $(TOP_VHDL_RTL_PKGS)
 
 ## VHDL Source
-VHDL_SRCS += $(foreach f, $(shell strings $(FLISTS)/vhdl.flist), $(ESP_ROOT)/rtl/$(f))
+# Compile CPU-specific VHDL before generic RTL so direct entity instantiations bind correctly
 VHDL_SRCS += $(foreach f, $(shell strings $(FLISTS)/cores_vhdl.flist), $(if $(findstring cores/$(CPU_ARCH), $(f)), $(ESP_ROOT)/rtl/$(f),))
+VHDL_SRCS += $(foreach f, $(shell strings $(FLISTS)/vhdl.flist), $(ESP_ROOT)/rtl/$(f))
 
 ifeq ($(TECHLIB), inferred)
 VHDL_SRCS += $(foreach f, $(shell strings $(FLISTS)/techmap_vhdl.flist), $(if $(findstring techmap/$(TECHLIB), $(f)), $(ESP_ROOT)/rtl/$(f),))
@@ -47,8 +51,16 @@ SIM_VHDL_SRCS += $(TOP_VHDL_SIM_SRCS)
 ## Verilog Source
 RTL_TECH_FOLDERS = $(shell ls -d $(ESP_ROOT)/tech/$(TECHLIB)/*/)
 
-VLOG_SRCS += $(foreach f, $(shell strings $(FLISTS)/vlog.flist), $(ESP_ROOT)/rtl/$(f))
+# Compile CPU-specific SV first so shared packages/dependencies exist before generic RTL
 VLOG_SRCS += $(foreach f, $(shell strings $(FLISTS)/cores_vlog.flist), $(if $(findstring cores/$(CPU_ARCH), $(f)), $(ESP_ROOT)/rtl/$(f),))
+VLOG_SRCS += $(foreach f, $(shell strings $(FLISTS)/vlog.flist), $(ESP_ROOT)/rtl/$(f))
+
+ifneq ($(filter $(TECHLIB),$(FPGALIBS)),)
+XPM_MEMORY_SV := $(XILINX_VIVADO)/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv
+ifneq ("$(wildcard $(XPM_MEMORY_SV))","")
+VLOG_SRCS += $(XPM_MEMORY_SV)
+endif
+endif
 
 ifeq ($(TECHLIB), inferred)
 VLOG_SRCS += $(foreach f, $(shell strings $(FLISTS)/techmap_vlog.flist), $(if $(findstring techmap/$(TECHLIB), $(f)), $(ESP_ROOT)/rtl/$(f),))
@@ -107,7 +119,7 @@ techmap_flist:
 		(find -L techmap/ -not \( -path techmap/unisim -prune \) -not \( -path techmap/asic/mem/tb -prune \) -name "*.sv") >> $(ESP_ROOT)/utils/flist/techmap_vlog.flist  ; cd $(ESP_ROOT)/../$(PROJECT_NAME) )
 
 
-check_all_srcs: $(GRLIB_CFG_BUILD)/grlib_config.vhd $(ESP_CFG_BUILD)/socmap.vhd socketgen $(ESP_CFG_BUILD)/plic_regmap.sv techmap_flist $(RTL_CFG_BUILD) token_pm_divider_hls
+check_all_srcs: $(GRLIB_CFG_BUILD)/grlib_config.vhd $(ESP_CFG_BUILD)/socmap.vhd socketgen $(ESP_CFG_BUILD)/plic_regmap.sv techmap_flist $(RTL_CFG_BUILD) token_pm_divider_hls $(FLIST_SRCS)
 	@echo $(SIM_VHDL_PKGS) > $@.new;
 	@echo $(SIM_VHDL_SRCS) >> $@.new;
 	@echo $(SIM_VLOG_SRCS) >> $@.new;

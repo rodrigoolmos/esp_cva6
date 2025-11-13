@@ -72,10 +72,13 @@ ifneq ("$(CPU_ARCH)", "leon3")
 $(ESP_CFG_BUILD)/riscv.dts: $(ESP_CFG_BUILD)/.esp_config $(GRLIB_CFG_BUILD)/grlib_config.vhd top.vhd
 	$(QUIET_MAKE)$(MAKE) $(ESP_CFG_BUILD)/socmap.vhd
 
-ARIANE_RV_PLIC_REGMAP_GEN = $(ESP_ROOT)/rtl/cores/ariane/ariane/src/rv_plic/rtl/gen_plic_addrmap.py
+RV_PLIC_REGMAP_GEN = $(ESP_ROOT)/rtl/cores/ariane/ariane/src/rv_plic/rtl/gen_plic_addrmap.py
+ifeq ("$(CPU_ARCH)", "cva6")
+RV_PLIC_REGMAP_GEN = $(ESP_ROOT)/rtl/cores/cva6/cva6/corev_apu/rv_plic/rtl/gen_plic_addrmap.py
+endif
 
-$(ESP_CFG_BUILD)/plic_regmap.sv: $(ARIANE_RV_PLIC_REGMAP_GEN) $(ESP_CFG_BUILD)/.esp_config
-	$(QUIET_MAKE)$< -t $$(($(NCPU_TILE)*2)) > $@
+$(ESP_CFG_BUILD)/plic_regmap.sv: $(RV_PLIC_REGMAP_GEN) $(ESP_CFG_BUILD)/.esp_config
+	$(QUIET_MAKE)$(RV_PLIC_REGMAP_GEN) -t $$(($(NCPU_TILE)*2)) > $@
 endif
 
 ifeq ("$(CPU_ARCH)", "leon3")

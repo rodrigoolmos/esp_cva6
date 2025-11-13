@@ -17,6 +17,7 @@ noyes () {
 }
 
 INSTALL_ARIANE=0
+INSTALL_CVA6=0
 INSTALL_IBEX=0
 INSTALL_ARIANE_LINUX=0
 INSTALL_LEON3_LINUX=0
@@ -31,6 +32,10 @@ INSTALL_EIGEN=0
 
 if [ $(noyes "*** QUESTION : Do you want to install the Ariane core?") == "y" ]; then
     INSTALL_ARIANE=1
+fi
+
+if [ $(noyes "*** QUESTION : Do you want to install the CVA6 core?") == "y" ]; then
+    INSTALL_CVA6=1
 fi
 
 if [ $(noyes "*** QUESTION : Do you want to install the Ibex core?") == "y" ]; then
@@ -82,6 +87,13 @@ git submodule update --init --recursive rtl/caches/esp-caches
 
 if [ ${INSTALL_ARIANE} == 1 ]; then
     git submodule update --init --recursive rtl/cores/ariane/ariane
+    git submodule update --init --recursive soft/ariane/opensbi
+    git submodule update --init --recursive soft/ariane/riscv-pk
+    git submodule update --init --recursive soft/ariane/riscv-tests
+fi
+
+if [ ${INSTALL_CVA6} == 1 ]; then
+    git submodule update --init --recursive rtl/cores/cva6/cva6
     git submodule update --init --recursive soft/ariane/opensbi
     git submodule update --init --recursive soft/ariane/riscv-pk
     git submodule update --init --recursive soft/ariane/riscv-tests

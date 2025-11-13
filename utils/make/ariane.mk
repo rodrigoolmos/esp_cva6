@@ -3,6 +3,31 @@
 
 
 ARIANE ?= $(ESP_ROOT)/rtl/cores/ariane/ariane
+CVA6   ?= $(ESP_ROOT)/rtl/cores/cva6/cva6
+
+RISCV64_CORE_DIR              :=
+RISCV64_FLIST_BASENAME        :=
+RISCV64_FPGA_FLIST_BASENAME   :=
+RISCV64_INC_DIRS              :=
+
+ifeq ("$(CPU_ARCH)", "ariane")
+RISCV64_CORE_DIR            = $(ARIANE)
+RISCV64_FLIST_BASENAME      = ariane
+RISCV64_FPGA_FLIST_BASENAME = ariane_fpga
+RISCV64_INC_DIRS           += $(ARIANE)/src/common_cells/include
+endif
+
+ifeq ("$(CPU_ARCH)", "cva6")
+RISCV64_CORE_DIR            = $(CVA6)
+RISCV64_FLIST_BASENAME      = cva6
+RISCV64_FPGA_FLIST_BASENAME = cva6_fpga
+RISCV64_INC_DIRS           += $(CVA6)/core/include
+RISCV64_INC_DIRS           += $(CVA6)/common/local/util
+RISCV64_INC_DIRS           += $(CVA6)/vendor/pulp-platform/common_cells/include
+RISCV64_INC_DIRS           += $(CVA6)/vendor/pulp-platform/common_cells/include/common_cells
+RISCV64_INC_DIRS           += $(CVA6)/core/cvfpu/src/common_cells/include
+RISCV64_INC_DIRS           += $(CVA6)/vendor/pulp-platform/axi/include
+endif
 
 RISCV_TESTS = $(SOFT)/riscv-tests
 RISCV_PK = $(SOFT)/riscv-pk
@@ -201,7 +226,7 @@ VLOGOPT += -permissive
 VLOGOPT += +define+WT_DCACHE
 VLOGOPT += -pedanticerrors
 VLOGOPT += -suppress 2583
-ifeq ("$(CPU_ARCH)", "ariane")
+ifneq ($(filter $(CPU_ARCH),ariane cva6),)
 VSIMOPT += +UVM_NO_RELNOTES +permissive-off
 VSIMOPT += -voptargs="+acc"
 else
@@ -218,13 +243,12 @@ XMLOGOPT += -DEFINE WT_DCACHE=1
 
 ### Incdir and RTL
 
-ifeq ("$(CPU_ARCH)", "ariane")
-INCDIR += $(ARIANE)/src/common_cells/include
-VERILOG_ARIANE += $(foreach f, $(shell strings $(FLISTS)/ariane_vlog.flist), $(ARIANE)/$(f))
-VERILOG_ARIANE += $(DESIGN_PATH)/$(ESP_CFG_BUILD)/plic_regmap.sv
+ifneq ($(strip $(RISCV64_CORE_DIR)),)
+INCDIR += $(RISCV64_INC_DIRS)
+VERILOG_RISCV64 += $(foreach f, $(shell strings $(FLISTS)/$(RISCV64_FLIST_BASENAME)_vlog.flist), $(RISCV64_CORE_DIR)/$(f))
+VERILOG_RISCV64 += $(DESIGN_PATH)/$(ESP_CFG_BUILD)/plic_regmap.sv
 ifneq ($(filter $(TECHLIB),$(FPGALIBS)),)
-VERILOG_ARIANE += $(foreach f, $(shell strings $(FLISTS)/ariane_fpga_vlog.flist), $(ARIANE)/$(f))
+VERILOG_RISCV64 += $(foreach f, $(shell strings $(FLISTS)/$(RISCV64_FPGA_FLIST_BASENAME)_vlog.flist), $(RISCV64_CORE_DIR)/$(f))
 endif
-THIRDPARTY_VLOG += $(VERILOG_ARIANE)
+THIRDPARTY_VLOG += $(VERILOG_RISCV64)
 endif
-

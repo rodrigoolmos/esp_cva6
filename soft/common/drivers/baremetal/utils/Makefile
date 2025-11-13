@@ -1,6 +1,9 @@
 # Copyright (c) 2011-2025 Columbia University, System Level Design Group
 # SPDX-License-Identifier: Apache-2.0
 CPU_SOFT_PATH := ../../../../$(CPU_ARCH)
+ifeq ("$(CPU_ARCH)", "cva6")
+CPU_SOFT_PATH := ../../../../ariane
+endif
 
 CFLAGS ?= -O3
 CFLAGS += -fno-builtin-cos -fno-builtin-sin
@@ -22,6 +25,8 @@ CFLAGS += -nostdlib
 CFLAGS += -nostartfiles
 
 ifeq ("$(CPU_ARCH)", "ariane")
+CROSS_COMPILE ?= riscv64-unknown-elf-
+else ifeq ("$(CPU_ARCH)", "cva6")
 CROSS_COMPILE ?= riscv64-unknown-elf-
 else # ("$(CPU_ARCH)", "ibex")
 CROSS_COMPILE ?= riscv32-unknown-elf-

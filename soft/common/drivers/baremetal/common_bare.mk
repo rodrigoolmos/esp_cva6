@@ -1,6 +1,9 @@
 # Copyright (c) 2011-2025 Columbia University, System Level Design Group
 # SPDX-License-Identifier: Apache-2.0
 CPU_SOFT_PATH := $(DRIVERS)/../../../$(CPU_ARCH)
+ifeq ("$(CPU_ARCH)", "cva6")
+CPU_SOFT_PATH := $(DRIVERS)/../../../ariane
+endif
 
 ifeq ("$(CPU_ARCH)", "leon3")
 CFLAGS += -Wall
@@ -28,6 +31,9 @@ LDFLAGS_RISCV += $(RISCV_TESTS)/benchmarks/common/crt.S
 LDFLAGS_RISCV += -T $(RISCV_TESTS)/benchmarks/common/test.ld
 OBJCPFLAGS :=
 ifeq ("$(CPU_ARCH)", "ariane")
+CFLAGS += -nostdlib
+CROSS_COMPILE ?= riscv64-unknown-elf-
+else ifeq ("$(CPU_ARCH)", "cva6")
 CFLAGS += -nostdlib
 CROSS_COMPILE ?= riscv64-unknown-elf-
 else # ("$(CPU_ARCH)", "ibex")
