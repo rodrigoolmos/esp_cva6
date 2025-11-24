@@ -2800,6 +2800,11 @@ for acc in accelerators:
     acc_dp = get_immediate_subdirectories(acc_dir)
     for dp_str in acc_dp:
         dp = dp_str.replace(acc + "_", "")
+        # Skip placeholder/invalid directory names that cannot become VHDL identifiers
+        if dp == "" or re.search(r"[^A-Za-z0-9_]", dp):
+            print("    WARNING: Skipping invalid implementation name " +
+                  dp_str + " for " + acc)
+            continue
         dp_info = dp.split("_")
         skip = False
         datatype = ""
