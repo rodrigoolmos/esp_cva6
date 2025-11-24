@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 include ../driver.mk
 
+KBUILD_EXTRA_SYMBOLS := $(shell pwd)/../esp_cache/Module.symvers $(shell pwd)/../contig_alloc/Module.symvers
+export KBUILD_EXTRA_SYMBOLS
+
 CFLAGS := -Wall -Werror -O3 -I$(DRIVERS)/include -I$(DRIVERS)/../common/include -L.
 
 Module.symvers:

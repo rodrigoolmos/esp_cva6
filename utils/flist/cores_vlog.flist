@@ -22,7 +22,7 @@ cores/ariane/riscv_clint_wrap.sv
 cores/ariane/riscv_plic_wrap.sv
 cores/cva6/cva6/core/include/config_pkg.sv
 cores/cva6/cva6_soc_pkg.sv
-cores/cva6/cva6/core/include/cv64a6_imafdc_sv39_openpiton_config_pkg.sv
+cores/cva6/cva6/core/include/cv64a6_imafdc_sv39_esp_config_pkg.sv
 cores/cva6/cva6/core/include/build_config_pkg.sv
 cores/cva6/cva6/core/include/riscv_pkg.sv
 cores/cva6/cva6/corev_apu/riscv-dbg/src/dm_pkg.sv

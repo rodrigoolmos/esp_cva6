@@ -5,11 +5,7 @@
 
 int main(int argc, char **argv)
 {
-
-    for (int i = 0; i < 100; i++){
-        printf("Hello from ESP %d\n", i);
-    }
-    
+    printf("Hello from ESP!\n");
 
     return 0;
 }

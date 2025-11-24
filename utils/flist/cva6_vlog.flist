@@ -6,6 +6,7 @@ common/local/util/instr_tracer.sv
 core/include/std_cache_pkg.sv
 core/include/wt_cache_pkg.sv
 core/cvfpu/src/fpnew_pkg.sv
+core/include/aes_pkg.sv
 vendor/pulp-platform/fpga-support/rtl/SyncSpRamBeNx64.sv
 core/cvfpu/src/fpnew_cast_multi.sv
 core/cvfpu/src/fpnew_classifier.sv
@@ -128,9 +129,6 @@ core/cache_subsystem/cache_ctrl.sv
 core/cache_subsystem/cva6_icache_axi_wrapper.sv
 core/cache_subsystem/std_cache_subsystem.sv
 core/cache_subsystem/std_nbdcache.sv
-core/include/cv64a6_imafdc_sv39_openpiton_config_pkg.sv
-core/include/ariane_axi_pkg.sv
-core/include/riscv_pkg.sv
 corev_apu/riscv-dbg/src/dm_pkg.sv
 core/include/ariane_pkg.sv
 corev_apu/tb/ariane_soc_pkg.sv
@@ -168,6 +166,8 @@ common/local/util/tc_sram_wrapper.sv
 vendor/pulp-platform/tech_cells_generic/src/rtl/tc_sram.sv
 vendor/pulp-platform/tech_cells_generic/src/rtl/tc_clk.sv
 core/alu.sv
+core/cvxif_compressed_if_driver.sv
+core/aes.sv
 core/alu_wrapper.sv
 core/fpu_wrap.sv
 corev_apu/src/ariane.sv
@@ -192,7 +192,6 @@ core/cva6_fifo_v3.sv
 core/issue_read_operands.sv
 core/cvxif_issue_register_commit_if_driver.sv
 core/issue_stage.sv
-core/cva6_rvfi_probes.sv
 core/load_unit.sv
 core/load_store_unit.sv
 core/lsu_bypass.sv

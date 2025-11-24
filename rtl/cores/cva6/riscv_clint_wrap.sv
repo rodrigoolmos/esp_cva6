@@ -3,6 +3,7 @@
 
 
 module riscv_clint_wrap #(
+    parameter CVA6Cfg = build_config_pkg::build_config(cva6_config_pkg::cva6_cfg),
     parameter AXI_ADDR_WIDTH = 64,
     parameter AXI_DATA_WIDTH = 64,
     parameter AXI_ID_WIDTH_SLV = 10,
@@ -203,21 +204,22 @@ module riscv_clint_wrap #(
     end
 
     clint #(
-        .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-        .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-        .AXI_ID_WIDTH  (AXI_ID_WIDTH_SLV),
-        .NR_CORES      (NR_CORES),
-        .axi_req_t     (axi_req_t),
-        .axi_resp_t    (axi_resp_t)
+        .CVA6Cfg        ( CVA6Cfg                       ),
+        .AXI_ADDR_WIDTH ( AXI_ADDR_WIDTH                ),
+        .AXI_DATA_WIDTH ( AXI_DATA_WIDTH                ),
+        .AXI_ID_WIDTH   ( AXI_ID_WIDTH_SLV              ),
+        .NR_CORES       ( NR_CORES                      ),
+        .axi_req_t      (axi_req_t                      ),
+        .axi_resp_t     (axi_resp_t                     )
     ) i_clint (
-        .clk_i      (clk),
-        .rst_ni     (rstn),
-        .testmode_i (1'b0),
-        .axi_req_i  (axi_req_i),
-        .axi_resp_o (axi_resp_o),
-        .rtc_i      (rtc),
-        .timer_irq_o(timer_irq),
-        .ipi_o      (ipi)
+        .clk_i       (clk),
+        .rst_ni      (rstn),
+        .testmode_i  (1'b0),
+        .axi_req_i   (axi_req_i),
+        .axi_resp_o  (axi_resp_o),
+        .rtc_i       (rtc),
+        .timer_irq_o (timer_irq),
+        .ipi_o       (ipi)
     );
 
 endmodule  // riscv_clint_wrap

@@ -37,7 +37,7 @@ include $(ESP_ROOT)/utils/make/help.mk
 include $(ESP_ROOT)/utils/make/design.mk
 
 ifeq ("$(CPU_ARCH)", "cva6")
-override SOFT         = $(ESP_ROOT)/soft/ariane
+override SOFT         = $(ESP_ROOT)/soft/cva6
 override BOOTROM_PATH = $(SOFT)/bootrom
 override LINUXSRC     = $(SOFT)/linux
 endif

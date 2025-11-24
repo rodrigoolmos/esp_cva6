@@ -316,34 +316,7 @@ module cva6_wrap #(
     output logic                flush_done
 );
 
-    function automatic config_pkg::cva6_cfg_t build_esp_config();
-        config_pkg::cva6_user_cfg_t cfg = cva6_config_pkg::cva6_cfg;
-        cfg.CvxifEn                 = bit'(0);
-        cfg.CoproType               = config_pkg::COPRO_NONE;
-        cfg.DCacheType              = config_pkg::WT;
-        cfg.NrNonIdempotentRules    = unsigned'(1);
-        cfg.NonIdempotentAddrBase   = '0;
-        cfg.NonIdempotentAddrBase[0]= 64'b0;
-        cfg.NonIdempotentLength     = '0;
-        cfg.NonIdempotentLength[0]  = DRAMBase;
-        cfg.NrExecuteRegionRules    = unsigned'(2);
-        cfg.ExecuteRegionAddrBase   = '0;
-        cfg.ExecuteRegionAddrBase[0]= DRAMBase;
-        cfg.ExecuteRegionAddrBase[1]= ROMBase;
-        cfg.ExecuteRegionLength     = '0;
-        cfg.ExecuteRegionLength[0]  = DRAMCachedLength;
-        cfg.ExecuteRegionLength[1]  = ROMLength;
-        cfg.NrCachedRegionRules     = unsigned'(1);
-        cfg.CachedRegionAddrBase    = '0;
-        cfg.CachedRegionAddrBase[0] = DRAMBase;
-        cfg.CachedRegionLength      = '0;
-        cfg.CachedRegionLength[0]   = DRAMCachedLength;
-        cfg.DmBaseAddress           = 64'd0;
-        cfg.TechnoCut               = bit'(1);
-        return build_config_pkg::build_config(cfg);
-    endfunction
-
-    localparam config_pkg::cva6_cfg_t Cva6SocCfg = build_esp_config();
+    localparam config_pkg::cva6_cfg_t Cva6SocCfg = build_config_pkg::build_config(cva6_config_pkg::cva6_cfg);
 
     // TODO: move this to I/O tile and socmap CFG_NCPUTILE
     localparam NHARTS = 1;
@@ -370,20 +343,6 @@ module cva6_wrap #(
         .AXI_ID_WIDTH  (AXI_ID_WIDTH_SLV),
         .AXI_USER_WIDTH(AXI_USER_WIDTH)
     ) master[NSLV-1:0] ();
-
-    typedef logic [AXI_ADDR_WIDTH-1:0] cva6_axi_addr_t;
-    typedef logic [AXI_DATA_WIDTH-1:0] cva6_axi_data_t;
-    typedef logic [AXI_ID_WIDTH-1:0]   cva6_axi_id_t;
-    typedef logic [AXI_STRB_WIDTH-1:0] cva6_axi_strb_t;
-    typedef logic [AXI_USER_WIDTH-1:0] cva6_axi_user_t;
-
-    `AXI_TYPEDEF_AW_CHAN_T(cva6_axi_aw_chan_t, cva6_axi_addr_t, cva6_axi_id_t, cva6_axi_user_t)
-    `AXI_TYPEDEF_W_CHAN_T (cva6_axi_w_chan_t,  cva6_axi_data_t, cva6_axi_strb_t, cva6_axi_user_t)
-    `AXI_TYPEDEF_B_CHAN_T (cva6_axi_b_chan_t,  cva6_axi_id_t,   cva6_axi_user_t)
-    `AXI_TYPEDEF_AR_CHAN_T(cva6_axi_ar_chan_t, cva6_axi_addr_t, cva6_axi_id_t, cva6_axi_user_t)
-    `AXI_TYPEDEF_R_CHAN_T (cva6_axi_r_chan_t,  cva6_axi_data_t, cva6_axi_id_t, cva6_axi_user_t)
-    `AXI_TYPEDEF_REQ_T    (cva6_axi_req_t,     cva6_axi_aw_chan_t, cva6_axi_w_chan_t, cva6_axi_ar_chan_t)
-    `AXI_TYPEDEF_RESP_T   (cva6_axi_resp_t,    cva6_axi_b_chan_t, cva6_axi_r_chan_t)
 
     assign slave[1].aw_valid = 1'b0;
     assign slave[1].w_valid  = 1'b0;
@@ -437,12 +396,24 @@ module cva6_wrap #(
         end else begin : gen_xbar_32
             axi_pkg::xbar_rule_32_t [NSLV-1:0] addr_map;
             assign addr_map = '{
-                '{ idx: DRAM,     start_addr: DRAMBase[AXI_ADDR_WIDTH-1:0],     end_addr: (DRAMBase[AXI_ADDR_WIDTH-1:0] + DRAMLength[AXI_ADDR_WIDTH-1:0] - 1)     },
-                '{ idx: SLMDDR,   start_addr: SLMDDRBase[AXI_ADDR_WIDTH-1:0],   end_addr: (SLMDDRBase[AXI_ADDR_WIDTH-1:0] + SLMDDRLength[AXI_ADDR_WIDTH-1:0] - 1) },
-                '{ idx: SLM,      start_addr: SLMBase[AXI_ADDR_WIDTH-1:0],      end_addr: (SLMBase[AXI_ADDR_WIDTH-1:0] + SLMLength[AXI_ADDR_WIDTH-1:0] - 1)       },
-                '{ idx: CLINT,    start_addr: CLINTBase[AXI_ADDR_WIDTH-1:0],    end_addr: (CLINTBase[AXI_ADDR_WIDTH-1:0] + CLINTLength[AXI_ADDR_WIDTH-1:0] - 1)   },
-                '{ idx: APB,      start_addr: APBBase[AXI_ADDR_WIDTH-1:0],      end_addr: (APBBase[AXI_ADDR_WIDTH-1:0] + APBLength[AXI_ADDR_WIDTH-1:0] - 1)       },
-                '{ idx: ROM,      start_addr: ROMBase[AXI_ADDR_WIDTH-1:0],      end_addr: (ROMBase[AXI_ADDR_WIDTH-1:0] + ROMLength[AXI_ADDR_WIDTH-1:0] - 1)       }
+                '{ idx: DRAM,   start_addr: DRAMBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((DRAMBase[AXI_ADDR_WIDTH-1:0] + DRAMLength[AXI_ADDR_WIDTH-1:0]) < DRAMBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (DRAMBase[AXI_ADDR_WIDTH-1:0] + DRAMLength[AXI_ADDR_WIDTH-1:0]) },
+                '{ idx: SLMDDR, start_addr: SLMDDRBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((SLMDDRBase[AXI_ADDR_WIDTH-1:0] + SLMDDRLength[AXI_ADDR_WIDTH-1:0]) < SLMDDRBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (SLMDDRBase[AXI_ADDR_WIDTH-1:0] + SLMDDRLength[AXI_ADDR_WIDTH-1:0]) },
+                '{ idx: SLM,    start_addr: SLMBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((SLMBase[AXI_ADDR_WIDTH-1:0] + SLMLength[AXI_ADDR_WIDTH-1:0]) < SLMBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (SLMBase[AXI_ADDR_WIDTH-1:0] + SLMLength[AXI_ADDR_WIDTH-1:0]) },
+                '{ idx: CLINT,  start_addr: CLINTBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((CLINTBase[AXI_ADDR_WIDTH-1:0] + CLINTLength[AXI_ADDR_WIDTH-1:0]) < CLINTBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (CLINTBase[AXI_ADDR_WIDTH-1:0] + CLINTLength[AXI_ADDR_WIDTH-1:0]) },
+                '{ idx: APB,    start_addr: APBBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((APBBase[AXI_ADDR_WIDTH-1:0] + APBLength[AXI_ADDR_WIDTH-1:0]) < APBBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (APBBase[AXI_ADDR_WIDTH-1:0] + APBLength[AXI_ADDR_WIDTH-1:0]) },
+                '{ idx: ROM,    start_addr: ROMBase[AXI_ADDR_WIDTH-1:0],
+                   end_addr: ((ROMBase[AXI_ADDR_WIDTH-1:0] + ROMLength[AXI_ADDR_WIDTH-1:0]) < ROMBase[AXI_ADDR_WIDTH-1:0])
+                             ? '1 : (ROMBase[AXI_ADDR_WIDTH-1:0] + ROMLength[AXI_ADDR_WIDTH-1:0]) }
             };
             axi_xbar_intf #(
                 .AXI_USER_WIDTH ( AXI_USER_WIDTH          ),
@@ -465,8 +436,8 @@ module cva6_wrap #(
     // Core
     // ---------------
 
-    cva6_axi_req_t           axi_cva6_req;
-    cva6_axi_resp_t          axi_cva6_resp;
+    ariane_axi::req_t        axi_ariane_req;
+    ariane_axi::resp_t       axi_ariane_resp;
     logic                    flush_ack;
 
     ariane #(
@@ -474,11 +445,11 @@ module cva6_wrap #(
         .AxiAddrWidth  (AXI_ADDR_WIDTH),
         .AxiDataWidth  (AXI_DATA_WIDTH),
         .AxiIdWidth    (AXI_ID_WIDTH),
-        .axi_aw_chan_t (cva6_axi_aw_chan_t),
-        .axi_w_chan_t  (cva6_axi_w_chan_t),
-        .axi_ar_chan_t (cva6_axi_ar_chan_t),
-        .noc_req_t     (cva6_axi_req_t),
-        .noc_resp_t    (cva6_axi_resp_t)
+        .noc_req_t     ( ariane_axi::req_t    ),
+        .noc_resp_t    ( ariane_axi::resp_t   ),
+        .axi_aw_chan_t ( ariane_axi::aw_chan_t),
+        .axi_w_chan_t  ( ariane_axi::w_chan_t ),
+        .axi_ar_chan_t ( ariane_axi::ar_chan_t)
     ) i_cva6 (
         .clk_i        (clk),
         .rst_ni       (rstn),
@@ -489,12 +460,9 @@ module cva6_wrap #(
         .time_irq_i   (timer_irq),
         .debug_req_i  (1'b0),
         .rvfi_probes_o(),
-        .noc_req_o    (axi_cva6_req),
-        .noc_resp_i   (axi_cva6_resp)
+        .noc_req_o    ( axi_ariane_req      ),
+        .noc_resp_i   ( axi_ariane_resp     )
     );
-
-    `AXI_ASSIGN_FROM_REQ(slave[0], axi_cva6_req)
-    `AXI_ASSIGN_TO_RESP(axi_cva6_resp, slave[0])
 
     always_ff @(posedge clk or negedge rstn) begin
         if (!rstn) begin
@@ -509,6 +477,8 @@ module cva6_wrap #(
     assign fence_l2  = 2'b00;
     assign flush_done = (~flush_l1) | flush_ack;
 
+    `AXI_ASSIGN_FROM_REQ(slave[0], axi_ariane_req)
+    `AXI_ASSIGN_TO_RESP(axi_ariane_resp, slave[0])
 
     // ---------------
     // ROM
