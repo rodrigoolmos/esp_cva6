@@ -53,3 +53,6 @@
 [submodule "soft/common/drivers/common/utils/eigen"]
 	path = soft/common/drivers/common/utils/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "rtl/cores/cva6/cva6"]
+	path = rtl/cores/cva6/cva6
+	url = https://github.com/openhwgroup/cva6.git
