@@ -19,8 +19,10 @@ load_data:
     load_ctrl.user = 0;
 
     for (unsigned i = 0; i < SIZE_IN_CHUNK; i++) {
+	// Read full DMA word once to satisfy FIFO sequential-access rule
+	dma_word_t w = in1[base + i];
     	load_label0:for(unsigned j = 0; j < VALUES_PER_WORD; j++) {
-	    _inbuff[i * VALUES_PER_WORD + j] = in1[base + i].word[j];
+	    _inbuff[i * VALUES_PER_WORD + j] = w.word[j];
     	}
     }
 }
@@ -38,9 +40,11 @@ store_data:
     store_ctrl.user = 0;
 
     for (unsigned i = 0; i < SIZE_OUT_CHUNK; i++) {
+	dma_word_t w;
 	store_label1:for(unsigned j = 0; j < VALUES_PER_WORD; j++) {
-	    out[base + i].word[j] = _outbuff[i * VALUES_PER_WORD + j];
+	    w.word[j] = _outbuff[i * VALUES_PER_WORD + j];
 	}
+	out[base + i] = w;
     }
 }
 

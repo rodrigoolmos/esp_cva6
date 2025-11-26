@@ -8,7 +8,7 @@ HLS_TCL=common.tcl
 all: hls
 
 hls: 
-	@vivado_hls -f $(HLS_TCL)
+	@vitis_hls -f $(HLS_TCL)
 
 install:
 	@mkdir -p $(RTL_OUT)

@@ -24,8 +24,9 @@ load_data:
     load_ctrl.user = 0;
 
     for (unsigned i = 0; i < dma_length; i++) {
+	dma_word_t w = in1[dma_index + i];
     load_label0:for(unsigned j = 0; j < VALUES_PER_WORD; j++) {
-	    _inbuff[i * VALUES_PER_WORD + j] = in1[dma_index + i].word[j];
+	    _inbuff[i * VALUES_PER_WORD + j] = w.word[j];
     	}
     }
 }
@@ -50,9 +51,11 @@ store_data:
     store_ctrl.user = 0;
 
     for (unsigned i = 0; i < dma_length; i++) {
+	dma_word_t w;
     store_label1:for(unsigned j = 0; j < VALUES_PER_WORD; j++) {
-	    out[dma_index + i].word[j] = _outbuff[i * VALUES_PER_WORD + j];
+	    w.word[j] = _outbuff[i * VALUES_PER_WORD + j];
 	}
+	out[dma_index + i] = w;
     }
 }
 
