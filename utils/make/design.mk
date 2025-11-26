@@ -67,6 +67,7 @@ endif
 
 ifneq ($(filter $(CPU_ARCH),ariane cva6),)
 ARCH=riscv
+LINUX_CONFIG = ariane_defconfig
 CROSS_COMPILE_ELF = riscv64-unknown-elf-
 CROSS_COMPILE_LINUX = riscv64-unknown-linux-gnu-
 endif
