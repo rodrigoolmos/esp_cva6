@@ -56,3 +56,13 @@
 [submodule "rtl/cores/cva6/cva6"]
 	path = rtl/cores/cva6/cva6
 	url = https://github.com/openhwgroup/cva6.git
+[submodule "soft/cva6/linux"]
+	path = soft/cva6/linux
+	url = https://github.com/sld-columbia/linux.git
+	branch = ariane
+[submodule "soft/cva6/riscv-pk"]
+	path = soft/cva6/riscv-pk
+	url = https://github.com/sld-columbia/riscv-pk.git
+[submodule "soft/cva6/riscv-tests"]
+	path = soft/cva6/riscv-tests
+	url = https://github.com/riscv/riscv-tests.git
