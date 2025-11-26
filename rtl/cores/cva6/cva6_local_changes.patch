@@ -1,0 +1,388 @@
+diff --git a/common/local/util/tc_sram_wrapper.sv b/common/local/util/tc_sram_wrapper.sv
+index ae3287d9..6f44c353 100644
+--- a/common/local/util/tc_sram_wrapper.sv
++++ b/common/local/util/tc_sram_wrapper.sv
+@@ -34,6 +34,56 @@ module tc_sram_wrapper #(
+   output data_t [NumPorts-1:0] rdata_o     // read data
+ );
+ 
++`ifdef XILINX_FPGA
++
++  initial begin
++    if (NumPorts != 32'd1) begin
++      $fatal(1, "tc_sram_wrapper FPGA implementation supports NumPorts == 1 only (got %0d)", NumPorts);
++    end
++    if (DataWidth != 32'd64) begin
++      $fatal(1, "tc_sram_wrapper FPGA implementation supports DataWidth == 64 only (got %0d)", DataWidth);
++    end
++    if (ByteWidth != 32'd8) begin
++      $fatal(1, "tc_sram_wrapper FPGA implementation supports ByteWidth == 8 only (got %0d)", ByteWidth);
++    end
++  end
++
++  function automatic int unsigned sync_sram_init_sel(string mode);
++    if (mode == "zeros") begin
++      return 1;
++    end else if (mode == "random") begin
++      return 2;
++    end else if (mode == "deadbeef") begin
++      return 3;
++    end else begin
++      if (!(mode == "none")) begin
++        $warning("SyncSpRamBeNx64 does not support SimInit=%s, defaulting to 'none'", mode);
++      end
++      return 0;
++    end
++  endfunction
++
++  localparam int unsigned SYNC_SRAM_SIM_INIT = sync_sram_init_sel(SimInit);
++  localparam int unsigned OUT_REGS = (Latency > 32'd1) ? 1 : 0;
++
++  SyncSpRamBeNx64 #(
++    .ADDR_WIDTH(AddrWidth),
++    .DATA_DEPTH(NumWords),
++    .OUT_REGS (OUT_REGS),
++    .SIM_INIT (SYNC_SRAM_SIM_INIT)
++  ) i_fpga_sram (
++    .Clk_CI    ( clk_i      ),
++    .Rst_RBI   ( rst_ni     ),
++    .CSel_SI   ( req_i[0]   ),
++    .WrEn_SI   ( we_i[0]    ),
++    .BEn_SI    ( be_i[0]    ),
++    .WrData_DI ( wdata_i[0] ),
++    .Addr_DI   ( addr_i[0]  ),
++    .RdData_DO ( rdata_o[0] )
++  );
++
++`else // !XILINX_FPGA
++
+ // synthesis translate_off
+ 
+   tc_sram #(
+@@ -57,4 +107,6 @@ module tc_sram_wrapper #(
+ 
+ // synthesis translate_on
+ 
++`endif // XILINX_FPGA
++
+ endmodule
+diff --git a/common/local/util/tc_sram_wrapper_cache_techno.sv b/common/local/util/tc_sram_wrapper_cache_techno.sv
+index 31868b54..d270fd86 100644
+--- a/common/local/util/tc_sram_wrapper_cache_techno.sv
++++ b/common/local/util/tc_sram_wrapper_cache_techno.sv
+@@ -38,27 +38,67 @@ module tc_sram_wrapper_cache_techno #(
+   output data_t [NumPorts-1:0] rdata_o     // read data
+ );
+ 
+-// synthesis translate_off
++  initial begin
++    if (NumPorts != 32'd1) begin
++      $fatal(1, "tc_sram_wrapper_cache_techno supports NumPorts == 1 only (got %0d)", NumPorts);
++    end
++  end
+ 
+-  tc_sram #(
+-    .NumWords(NumWords),
+-    .DataWidth(DataWidth),
+-    .ByteWidth(ByteWidth),
+-    .NumPorts(NumPorts),
+-    .Latency(Latency),
+-    .SimInit(SimInit),
+-    .PrintSimCfg(PrintSimCfg)
+-  ) i_tc_sram (
+-      .clk_i    ( clk_i   ),
+-      .rst_ni   ( rst_ni  ),
+-      .req_i    ( req_i   ),
+-      .we_i     ( we_i    ),
+-      .be_i     ( be_i    ),
+-      .wdata_i  ( wdata_i ),
+-      .addr_i   ( addr_i  ),
+-      .rdata_o  ( rdata_o )
+-    );
++  localparam int unsigned DATA_WIDTH_ALIGNED = ((DataWidth + 63) / 64) * 64;
++  localparam int unsigned BE_WIDTH_ALIGNED   = (((DataWidth + 7) / 8 + 7) / 8) * 8;
++  localparam int unsigned ADDR_WIDTH_LCL     = (NumWords > 32'd1) ? $clog2(NumWords) : 1;
++
++  function automatic int unsigned sync_sram_init_sel(string mode);
++    if (mode == "zeros") begin
++      return 1;
++    end else if (mode == "random") begin
++      return 2;
++    end else if (mode == "deadbeef") begin
++      return 3;
++    end else begin
++      if (!(mode == "none")) begin
++        $warning("SyncSpRamBeNx64 does not support SimInit=%s, defaulting to 'none'", mode);
++      end
++      return 0;
++    end
++  endfunction
++
++  localparam int unsigned SYNC_SRAM_SIM_INIT = sync_sram_init_sel(SimInit);
++  localparam int unsigned OUT_REGS = (Latency > 32'd1) ? 1 : 0;
++
++  logic [DATA_WIDTH_ALIGNED-1:0] wdata_aligned;
++  logic [DATA_WIDTH_ALIGNED-1:0] rdata_aligned;
++  logic [BE_WIDTH_ALIGNED-1:0]   be_aligned;
+ 
+-// synthesis translate_on
++  always_comb begin
++    wdata_aligned                    = '0;
++    wdata_aligned[DataWidth-1:0]     = wdata_i[0];
++    rdata_o[0]                       = rdata_aligned[DataWidth-1:0];
++
++    if (BYTE_ACCESS) begin
++      be_aligned                 = '0;
++      be_aligned[BeWidth-1:0]    = be_i[0];
++    end else begin
++      be_aligned                 = {BE_WIDTH_ALIGNED{1'b1}};
++    end
++  end
++
++  for (genvar k = 0; k < DATA_WIDTH_ALIGNED/64; k++) begin : gen_slices
++    SyncSpRamBeNx64 #(
++      .ADDR_WIDTH(ADDR_WIDTH_LCL),
++      .DATA_DEPTH(NumWords),
++      .OUT_REGS (OUT_REGS),
++      .SIM_INIT (SYNC_SRAM_SIM_INIT)
++    ) i_sync_sram (
++      .Clk_CI    ( clk_i                          ),
++      .Rst_RBI   ( rst_ni                         ),
++      .CSel_SI   ( req_i[0]                       ),
++      .WrEn_SI   ( we_i[0]                        ),
++      .BEn_SI    ( be_aligned[k*8 +: 8]           ),
++      .WrData_DI ( wdata_aligned[k*64 +: 64]      ),
++      .Addr_DI   ( addr_i[0]                      ),
++      .RdData_DO ( rdata_aligned[k*64 +: 64]      )
++    );
++  end
+ 
+ endmodule
+diff --git a/core/cache_subsystem/wt_dcache_wbuffer.sv b/core/cache_subsystem/wt_dcache_wbuffer.sv
+index ef3a62ef..1a235ce6 100644
+--- a/core/cache_subsystem/wt_dcache_wbuffer.sv
++++ b/core/cache_subsystem/wt_dcache_wbuffer.sv
+@@ -517,7 +517,8 @@ module wt_dcache_wbuffer
+   always_comb begin : p_buffer
+     wbuffer_d           = wbuffer_q;
+     ni_pending_d        = ni_pending_q;
+-    dirty_rd_en         = 1'b0;
++    // drive immediate handshake; registered version is used for rr_arb_tree and state updates
++    dirty_rd_en         = (miss_req_o && miss_ack_i);
+     req_port_o.data_gnt = 1'b0;
+     wbuffer_wren        = 1'b0;
+ 
+@@ -559,9 +560,8 @@ module wt_dcache_wbuffer
+       end
+     end
+ 
+-    // mark bytes sent out to the memory system
+-    if (miss_req_o && miss_ack_i) begin
+-      dirty_rd_en = 1'b1;
++    // mark bytes sent out to the memory system when the arbiter grant is asserted
++    if (dirty_rd_en) begin
+       for (int k = 0; k < (CVA6Cfg.XLEN / 8); k++) begin
+         if (tx_be[k]) begin
+           wbuffer_d[dirty_ptr].dirty[k]   = 1'b0;
+diff --git a/core/csr_regfile.sv b/core/csr_regfile.sv
+index b93e08bb..b9af20b2 100644
+--- a/core/csr_regfile.sv
++++ b/core/csr_regfile.sv
+@@ -2909,39 +2909,45 @@ module csr_regfile
+   //-------------
+   // RVFI
+   //-------------
+-  assign rvfi_csr_o.fcsr_q = CVA6Cfg.FpPresent ? fcsr_q : '0;
+-  assign rvfi_csr_o.jvt_q = CVA6Cfg.RVZCMT ? jvt_q : '0;
+-  assign rvfi_csr_o.dcsr_q = CVA6Cfg.DebugEn ? dcsr_q : '0;
+-  assign rvfi_csr_o.dpc_q = CVA6Cfg.DebugEn ? dpc_q : '0;
+-  assign rvfi_csr_o.dscratch0_q = CVA6Cfg.DebugEn ? dscratch0_q : '0;
+-  assign rvfi_csr_o.dscratch1_q = CVA6Cfg.DebugEn ? dscratch1_q : '0;
+-  assign rvfi_csr_o.mie_q = mie_q;
+-  assign rvfi_csr_o.mip_q = mip_q;
+-  assign rvfi_csr_o.stvec_q = CVA6Cfg.RVS ? stvec_q : '0;
+-  assign rvfi_csr_o.scounteren_q = CVA6Cfg.RVS ? scounteren_q : '0;
+-  assign rvfi_csr_o.sscratch_q = CVA6Cfg.RVS ? sscratch_q : '0;
+-  assign rvfi_csr_o.sepc_q = CVA6Cfg.RVS ? sepc_q : '0;
+-  assign rvfi_csr_o.scause_q = CVA6Cfg.RVS ? scause_q : '0;
+-  assign rvfi_csr_o.stval_q = CVA6Cfg.RVS ? stval_q : '0;
+-  assign rvfi_csr_o.satp_q = CVA6Cfg.RVS ? satp_q : '0;
+-  assign rvfi_csr_o.mstatus_extended = mstatus_extended;
+-  assign rvfi_csr_o.medeleg_q = CVA6Cfg.RVS ? medeleg_q : '0;
+-  assign rvfi_csr_o.mideleg_q = CVA6Cfg.RVS ? mideleg_q : '0;
+-  assign rvfi_csr_o.mtvec_q = mtvec_q;
+-  assign rvfi_csr_o.mcounteren_q = mcounteren_q;
+-  assign rvfi_csr_o.mscratch_q = mscratch_q;
+-  assign rvfi_csr_o.mepc_q = mepc_q;
+-  assign rvfi_csr_o.mcause_q = mcause_q;
+-  assign rvfi_csr_o.mtval_q = CVA6Cfg.TvalEn ? mtval_q : '0;
+-  assign rvfi_csr_o.fiom_q = fiom_q;
+-  assign rvfi_csr_o.mcountinhibit_q = mcountinhibit_q;
+-  assign rvfi_csr_o.cycle_q = cycle_q;
+-  assign rvfi_csr_o.instret_q = instret_q;
+-  assign rvfi_csr_o.dcache_q = dcache_q;
+-  assign rvfi_csr_o.icache_q = icache_q;
+-  assign rvfi_csr_o.acc_cons_q = CVA6Cfg.EnableAccelerator ? acc_cons_q : '0;
+-  assign rvfi_csr_o.pmpcfg_q = pmpcfg_q;
+-  assign rvfi_csr_o.pmpaddr_q = pmpaddr_q;
++  generate
++    if (ariane_pkg::RVFI) begin : gen_rvfi_csrs
++      assign rvfi_csr_o.fcsr_q         = CVA6Cfg.FpPresent ? fcsr_q : '0;
++      assign rvfi_csr_o.jvt_q          = CVA6Cfg.RVZCMT ? jvt_q : '0;
++      assign rvfi_csr_o.dcsr_q         = CVA6Cfg.DebugEn ? dcsr_q : '0;
++      assign rvfi_csr_o.dpc_q          = CVA6Cfg.DebugEn ? dpc_q : '0;
++      assign rvfi_csr_o.dscratch0_q    = CVA6Cfg.DebugEn ? dscratch0_q : '0;
++      assign rvfi_csr_o.dscratch1_q    = CVA6Cfg.DebugEn ? dscratch1_q : '0;
++      assign rvfi_csr_o.mie_q          = mie_q;
++      assign rvfi_csr_o.mip_q          = mip_q;
++      assign rvfi_csr_o.stvec_q        = CVA6Cfg.RVS ? stvec_q : '0;
++      assign rvfi_csr_o.scounteren_q   = CVA6Cfg.RVS ? scounteren_q : '0;
++      assign rvfi_csr_o.sscratch_q     = CVA6Cfg.RVS ? sscratch_q : '0;
++      assign rvfi_csr_o.sepc_q         = CVA6Cfg.RVS ? sepc_q : '0;
++      assign rvfi_csr_o.scause_q       = CVA6Cfg.RVS ? scause_q : '0;
++      assign rvfi_csr_o.stval_q        = CVA6Cfg.RVS ? stval_q : '0;
++      assign rvfi_csr_o.satp_q         = CVA6Cfg.RVS ? satp_q : '0;
++      assign rvfi_csr_o.mstatus_extended = mstatus_extended;
++      assign rvfi_csr_o.medeleg_q      = CVA6Cfg.RVS ? medeleg_q : '0;
++      assign rvfi_csr_o.mideleg_q      = CVA6Cfg.RVS ? mideleg_q : '0;
++      assign rvfi_csr_o.mtvec_q        = mtvec_q;
++      assign rvfi_csr_o.mcounteren_q   = mcounteren_q;
++      assign rvfi_csr_o.mscratch_q     = mscratch_q;
++      assign rvfi_csr_o.mepc_q         = mepc_q;
++      assign rvfi_csr_o.mcause_q       = mcause_q;
++      assign rvfi_csr_o.mtval_q        = CVA6Cfg.TvalEn ? mtval_q : '0;
++      assign rvfi_csr_o.fiom_q         = fiom_q;
++      assign rvfi_csr_o.mcountinhibit_q = mcountinhibit_q;
++      assign rvfi_csr_o.cycle_q        = cycle_q;
++      assign rvfi_csr_o.instret_q      = instret_q;
++      assign rvfi_csr_o.dcache_q       = dcache_q;
++      assign rvfi_csr_o.icache_q       = icache_q;
++      assign rvfi_csr_o.acc_cons_q     = CVA6Cfg.EnableAccelerator ? acc_cons_q : '0;
++      assign rvfi_csr_o.pmpcfg_q       = pmpcfg_q;
++      assign rvfi_csr_o.pmpaddr_q      = pmpaddr_q;
++    end else begin : gen_no_rvfi_csrs
++      assign rvfi_csr_o = '0;
++    end
++  endgenerate
+ 
+ 
+ endmodule
+diff --git a/core/cva6.sv b/core/cva6.sv
+index 3987faf0..6e00be38 100644
+--- a/core/cva6.sv
++++ b/core/cva6.sv
+@@ -1801,58 +1801,63 @@ module cva6
+   //pragma translate_on
+ 
+ 
+-  //RVFI INSTR
+-  logic [CVA6Cfg.NrIssuePorts-1:0][31:0] rvfi_fetch_instr;
+-  for (genvar i = 0; i < CVA6Cfg.NrIssuePorts; i++) begin
+-    assign rvfi_fetch_instr[i] = fetch_entry_if_id[i].instruction;
+-  end
+-
+-  cva6_rvfi_probes #(
+-      .CVA6Cfg            (CVA6Cfg),
+-      .exception_t        (exception_t),
+-      .scoreboard_entry_t (scoreboard_entry_t),
+-      .lsu_ctrl_t         (lsu_ctrl_t),
+-      .bp_resolve_t       (bp_resolve_t),
+-      .rvfi_probes_instr_t(rvfi_probes_instr_t),
+-      .rvfi_probes_csr_t  (rvfi_probes_csr_t),
+-      .rvfi_probes_t      (rvfi_probes_t)
+-  ) i_cva6_rvfi_probes (
+-
+-      .flush_i            (flush_ctrl_if),
+-      .issue_instr_ack_i  (issue_instr_issue_id),
+-      .fetch_entry_valid_i(fetch_valid_if_id),
+-      .instruction_i      (rvfi_fetch_instr),
+-      .is_compressed_i    (rvfi_is_compressed),
+-
+-      .issue_pointer_i (rvfi_issue_pointer),
+-      .commit_pointer_i(rvfi_commit_pointer),
+-
+-      .flush_unissued_instr_i(flush_unissued_instr_ctrl_id),
+-      .decoded_instr_valid_i (issue_entry_valid_id_issue),
+-      .decoded_instr_ack_i   (issue_instr_issue_id),
+-
+-      .rs1_i(rvfi_rs1),
+-      .rs2_i(rvfi_rs2),
+-
+-      .commit_instr_i(commit_instr_id_commit),
+-      .commit_drop_i (commit_drop_id_commit),
+-      .ex_commit_i   (ex_commit),
+-      .priv_lvl_i    (priv_lvl),
+-
+-      .lsu_ctrl_i  (rvfi_lsu_ctrl),
+-      .wbdata_i    (wbdata_ex_id),
+-      .commit_ack_i(commit_ack),
+-      .mem_paddr_i (rvfi_mem_paddr),
+-      .debug_mode_i(debug_mode),
+-      .wdata_i     (wdata_commit_id),
+-
+-      .csr_i(rvfi_csr),
+-      .irq_i(irq_i),
+-      .resolved_branch_i(resolved_branch),
+-      .flu_trans_id_ex_id_i(flu_trans_id_ex_id),
+-      .rvfi_probes_o(rvfi_probes_o)
++  generate
++    if (ariane_pkg::RVFI) begin : gen_rvfi_probes
++      logic [CVA6Cfg.NrIssuePorts-1:0][31:0] rvfi_fetch_instr;
++      for (genvar i = 0; i < CVA6Cfg.NrIssuePorts; i++) begin : gen_rvfi_fetch_instr
++        assign rvfi_fetch_instr[i] = fetch_entry_if_id[i].instruction;
++      end
+ 
+-  );
++      cva6_rvfi_probes #(
++          .CVA6Cfg            (CVA6Cfg),
++          .exception_t        (exception_t),
++          .scoreboard_entry_t (scoreboard_entry_t),
++          .lsu_ctrl_t         (lsu_ctrl_t),
++          .bp_resolve_t       (bp_resolve_t),
++          .rvfi_probes_instr_t(rvfi_probes_instr_t),
++          .rvfi_probes_csr_t  (rvfi_probes_csr_t),
++          .rvfi_probes_t      (rvfi_probes_t)
++      ) i_cva6_rvfi_probes (
++
++          .flush_i            (flush_ctrl_if),
++          .issue_instr_ack_i  (issue_instr_issue_id),
++          .fetch_entry_valid_i(fetch_valid_if_id),
++          .instruction_i      (rvfi_fetch_instr),
++          .is_compressed_i    (rvfi_is_compressed),
++
++          .issue_pointer_i (rvfi_issue_pointer),
++          .commit_pointer_i(rvfi_commit_pointer),
++
++          .flush_unissued_instr_i(flush_unissued_instr_ctrl_id),
++          .decoded_instr_valid_i (issue_entry_valid_id_issue),
++          .decoded_instr_ack_i   (issue_instr_issue_id),
++
++          .rs1_i(rvfi_rs1),
++          .rs2_i(rvfi_rs2),
++
++          .commit_instr_i(commit_instr_id_commit),
++          .commit_drop_i (commit_drop_id_commit),
++          .ex_commit_i   (ex_commit),
++          .priv_lvl_i    (priv_lvl),
++
++          .lsu_ctrl_i  (rvfi_lsu_ctrl),
++          .wbdata_i    (wbdata_ex_id),
++          .commit_ack_i(commit_ack),
++          .mem_paddr_i (rvfi_mem_paddr),
++          .debug_mode_i(debug_mode),
++          .wdata_i     (wdata_commit_id),
++
++          .csr_i(rvfi_csr),
++          .irq_i(irq_i),
++          .resolved_branch_i(resolved_branch),
++          .flu_trans_id_ex_id_i(flu_trans_id_ex_id),
++          .rvfi_probes_o(rvfi_probes_o)
++
++      );
++    end else begin : gen_no_rvfi_probes
++      assign rvfi_probes_o = '0;
++    end
++  endgenerate
+ 
+   //pragma translate_off
+   initial begin
