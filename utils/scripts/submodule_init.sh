@@ -4,6 +4,9 @@
 
 set -e
 
+SCRIPT_PATH=$(realpath $(dirname "$0"))
+ESP_ROOT=$(realpath ${SCRIPT_PATH}/../..)
+
 noyes () {
     while true; do
 	read -p "$1 [y|n]? n: " yn
@@ -97,6 +100,17 @@ if [ ${INSTALL_CVA6} == 1 ]; then
     git submodule update --init --recursive soft/ariane/opensbi
     git submodule update --init --recursive soft/ariane/riscv-pk
     git submodule update --init --recursive soft/ariane/riscv-tests
+
+    CVA6_PATCH=${ESP_ROOT}/rtl/cores/cva6/cva6_local_changes.patch
+    CVA6_SUBMODULE=${ESP_ROOT}/rtl/cores/cva6/cva6
+    if [ -f "${CVA6_PATCH}" ]; then
+        if git -C "${CVA6_SUBMODULE}" apply --check "${CVA6_PATCH}" >/dev/null 2>&1; then
+            echo "*** Applying local CVA6 patch ***"
+            git -C "${CVA6_SUBMODULE}" apply "${CVA6_PATCH}"
+        else
+            echo "*** Skipping CVA6 local patch (already applied or conflicting) ***"
+        fi
+    fi
 fi
 
 if [ ${INSTALL_IBEX} == 1 ]; then
