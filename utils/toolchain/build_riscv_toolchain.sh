@@ -205,6 +205,8 @@ fi
         /usr/bin/install -m 0755 fs/cpio/init ${SYSROOT}/init;
     fi
 
+    cp -a ${ESP_ROOT}/soft/ariane/sysroot/. ${ESP_ROOT}/soft/cva6/sysroot/
+
     cd $TMP
 fi
 
